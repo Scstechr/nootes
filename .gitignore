@@ -5,13 +5,6 @@ dist/
 # Personal Markdown notes
 notes/
 
-# Python caches and virtual environments
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-.pytest_cache/
-
 # Local configuration and logs
 .env
 .env.*
