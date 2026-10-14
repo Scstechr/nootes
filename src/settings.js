@@ -1,4 +1,4 @@
-import { parseVimrc, vimrcExample } from './vimrc.js';
+import { parseVimrc, vimrcExample } from './vim-input.js';
 
 const storageKey = 'nootes.colorScheme';
 const schemes = [
@@ -112,7 +112,7 @@ export function setupSettings({ configureVimrc }) {
       loaded = true;
       status.textContent = warnings.length ? 'Loaded. Unsupported lines were skipped; see messages above.' : 'Loaded from disk. Supported preferences are active.';
     } catch (error) {
-      status.textContent = `Could not load .vimrc: ${error.message}. Restart the updated Python server and reload.`;
+      status.textContent = `Could not load .vimrc: ${error.message}. Restart the updated Node server and reload.`;
       status.classList.add('error');
     } finally { busy(false); }
   }

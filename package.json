@@ -4,13 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "npm --silent run python -- server.py",
+    "start": "node server.mjs",
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "test": "npm run test:launcher && npm run test:editor && npm --silent run python -- -m unittest discover -s tests -v",
-    "test:editor": "node --test tests/vim-input.test.mjs tests/vimrc.test.mjs",
-    "test:launcher": "node --test tests/python-launcher.test.mjs",
-    "python": "node -e \"const run = require('node:child_process').spawnSync; const commands = process.env.PYTHON ? [[process.env.PYTHON]] : process.platform === 'win32' ? [['py', '-3'], ['python'], ['python3']] : [['python3'], ['python']]; let chosen; for (const candidate of commands) { const check = run(candidate[0], [...candidate.slice(1), '-c', 'import sys; print(list(sys.version_info[:3]))'], {encoding: 'utf8', timeout: 5000, windowsHide: true, shell: false}); if (check.error || check.status !== 0) continue; try { const version = JSON.parse(check.stdout.trim()); if (Array.isArray(version) && version[0] === 3 && version[1] >= 10) {chosen = candidate; break;} } catch {} } if (!chosen) {console.error('Nootes: No working Python 3.10+ interpreter found. Install Python and reopen your terminal, or set PYTHON to its executable path. On Windows, try py -3 server.py.'); process.exit(1);} const args = process.argv.slice(1); const result = run(chosen[0], [...chosen.slice(1), ...(args.length ? args : ['server.py'])], {stdio: 'inherit', shell: false, env: {...process.env, PYTHONUNBUFFERED: '1', PYTHONIOENCODING: 'utf-8'}}); if (result.error) console.error('Nootes: ' + result.error.message); process.exit(result.status ?? (result.signal === 'SIGINT' ? 130 : 1));\" --"
+    "test": "node --test tests/*.test.mjs",
+    "test:editor": "node --test tests/vim-input.test.mjs"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.3.4",

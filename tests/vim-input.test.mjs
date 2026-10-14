@@ -11,7 +11,7 @@ globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.windo
 const { EditorView, basicSetup } = await import('codemirror');
 const { getCM, Vim } = await import('@replit/codemirror-vim');
 const { vimEditing } = await import('../src/vim-input.js');
-const { parseVimrc, applyVimrcMappings, applyVimrcOptions, vimrcExtensions } = await import('../src/vimrc.js');
+const { parseVimrc, vimrcExample, applyVimrcMappings, applyVimrcOptions, vimrcExtensions } = await import('../src/vim-input.js');
 const { indentUnit } = await import('@codemirror/language');
 
 function editor(config = null) {
@@ -119,4 +119,47 @@ test('vimrc tabstop and shiftwidth configure actual indentation; removing mappin
     key(view, 'h');
     assert.equal(view.state.selection.main.head, 0);
   } finally { view.destroy(); applyVimrcMappings(parseVimrc('')); }
+});
+
+test('parses Windows line endings, BOM, comments, aliases and booleans', () => {
+  const config = parseVimrc('\uFEFF" comment\r\nset nu rnu nowrap ts=8 sw=3 noet " inline comment\r\nset timeoutlen=400 tw=72 nopcre');
+  assert.deepEqual(config.warnings, []);
+  assert.deepEqual(config.options, { number: true, relativenumber: true, wrap: false, tabstop: 8, shiftwidth: 3, expandtab: false, timeoutlen: 400, textwidth: 72, pcre: false });
+});
+
+test('expands leaders, preserves mode scopes, and supports nonrecursive mappings', () => {
+  const config = parseVimrc('let mapleader = "<Space>"\nnnoremap <leader>w :w<cr>\ninoremap jj <esc>\nvmap <silent> H ^\nomap Q w\nnoremap X x');
+  assert.deepEqual(config.warnings, []);
+  assert.equal(config.mappings[0].lhs, '<Space>w');
+  assert.equal(config.mappings[0].rhs, ':w<CR>');
+  assert.equal(config.mappings[1].context, 'insert');
+  assert.equal(config.mappings[1].recursive, false);
+  assert.equal(config.mappings[2].context, 'visual');
+  assert.equal(config.mappings[2].recursive, true);
+  assert.equal(config.mappings[3].context, 'operatorPending');
+  assert.equal(config.mappings[4].context, undefined);
+});
+
+test('unsupported Vimscript and invalid option values produce precise warnings', () => {
+  const config = parseVimrc('source ~/.vimrc\nset ts=0 sw=500\ncall system("no")\nset number ignorecase');
+  assert.equal(config.options.tabstop, 4);
+  assert.equal(config.options.shiftwidth, 2);
+  assert.equal(config.options.number, true);
+  assert.deepEqual(config.warnings.map(warning => warning.line), [1, 2, 2, 3, 4]);
+  assert.equal(config.mappings.length, 0);
+});
+
+test('example is valid and empty configuration restores defaults', () => {
+  assert.deepEqual(parseVimrc(vimrcExample).warnings, []);
+  assert.equal(parseVimrc('').mappings.length, 0);
+  assert.equal(parseVimrc('').options.wrap, true);
+});
+
+
+test('literal Space leaders and dollar sequences expand literally', () => {
+  const space = parseVimrc('let mapleader = " "\nnnoremap <Leader>w :w<CR>');
+  assert.deepEqual(space.warnings, []);
+  assert.equal(space.mappings[0].lhs, '<Space>w');
+  const dollar = parseVimrc('let mapleader = "$&"\nnnoremap <Leader>w :w<CR>');
+  assert.equal(dollar.mappings[0].lhs, '$&w');
 });

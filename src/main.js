@@ -2,7 +2,7 @@ import { EditorView, basicSetup } from 'codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { Vim, getCM } from '@replit/codemirror-vim';
 import { Compartment } from '@codemirror/state';
-import { parseVimrc, applyVimrcMappings, applyVimrcOptions, vimrcExtensions } from './vimrc.js';
+import { parseVimrc, applyVimrcMappings, applyVimrcOptions, vimrcExtensions } from './vim-input.js';
 import { vimEditing } from './vim-input.js';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
