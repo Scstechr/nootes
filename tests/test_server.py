@@ -57,11 +57,58 @@ class NotesTests(unittest.TestCase):
     def test_symlink_rejected(self):
         target = server.NOTES / 'target.txt'
         target.write_text('original')
-        (server.NOTES / 'Link.md').symlink_to(target)
+        try:
+            (server.NOTES / 'Link.md').symlink_to(target)
+        except OSError as error:
+            self.skipTest(f'Symlink creation unavailable: {error}')
         with self.assertRaises(HTTPError) as error:
             self.request('/api/notes/Link.md', 'PUT', {'content': 'no'})
         self.assertEqual(error.exception.code, 400)
         self.assertEqual(target.read_text(), 'original')
+
+    def test_vimrc_round_trip(self):
+        config = '" My preferences\r\nset ts=8 sw=2\r\ninoremap jj <Esc>\r\n'
+        initial = self.request('/api/vimrc')
+        self.assertEqual(initial['content'], '')
+        self.assertEqual(initial['path'], str(server.NOTES / '.vimrc'))
+        self.request('/api/vimrc', 'PUT', {'content': config})
+        self.assertEqual((server.NOTES / '.vimrc').read_bytes().decode('utf-8'), config)
+        self.assertEqual(self.request('/api/vimrc')['content'], config.replace('\r\n', '\n'))
+        self.assertNotIn('.vimrc', [note['name'] for note in self.request('/api/notes')])
+        self.request('/api/vimrc', 'PUT', {'content': ''})
+        self.assertEqual(self.request('/api/vimrc')['content'], '')
+
+    def test_vimrc_cross_origin_rejected(self):
+        with self.assertRaises(HTTPError) as error:
+            self.request('/api/vimrc', 'PUT', {'content': 'set nu'}, {'Origin': 'https://other.example'})
+        self.assertEqual(error.exception.code, 403)
+        error.exception.close()
+
+    def test_vimrc_size_limit(self):
+        with self.assertRaises(HTTPError) as error:
+            self.request('/api/vimrc', 'PUT', {'content': 'x' * 70_000})
+        self.assertEqual(error.exception.code, 413)
+        error.exception.close()
+
+    def test_vimrc_symlink_rejected(self):
+        target = server.NOTES / 'private.txt'
+        target.write_text('private')
+        config = server.NOTES / '.vimrc'
+        if config.exists():
+            config.unlink()
+        try:
+            config.symlink_to(target)
+        except OSError as error:
+            self.skipTest(f'Symlink creation unavailable: {error}')
+        try:
+            for method in ['GET', 'PUT']:
+                with self.assertRaises(HTTPError) as error:
+                    self.request('/api/vimrc', method, {'content': 'no'} if method == 'PUT' else None)
+                self.assertEqual(error.exception.code, 400)
+                error.exception.close()
+            self.assertEqual(target.read_text(), 'private')
+        finally:
+            config.unlink()
 
 if __name__ == '__main__':
     unittest.main()

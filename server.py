@@ -19,7 +19,7 @@ def note_path(name):
     return NOTES / name
 
 def write_note(path, content):
-    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=NOTES, delete=False) as file:
+    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', newline='', dir=NOTES, delete=False) as file:
         file.write(content)
         temporary = file.name
     os.replace(temporary, path)
@@ -47,6 +47,17 @@ class Handler(SimpleHTTPRequestHandler):
                 content = path.read_text(encoding='utf-8')
                 notes.append({'name': path.name, 'content': content, 'updated': datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat()})
             return self.send_json(sorted(notes, key=lambda n: n['updated'], reverse=True))
+        if route == '/api/vimrc':
+            path = NOTES / '.vimrc'
+            if path.is_symlink():
+                return self.send_json({'error': 'Symlinks are not supported'}, 400)
+            try:
+                content = path.read_text(encoding='utf-8-sig') if path.exists() else ''
+                return self.send_json({'content': content, 'path': str(path)})
+            except UnicodeError:
+                return self.send_json({'error': '.vimrc must be UTF-8 text'}, 400)
+            except OSError:
+                return self.send_json({'error': 'Could not read .vimrc'}, 500)
         if route == '/api/config':
             return self.send_json({'storage': str(NOTES)})
         if route.startswith('/api/'):
@@ -55,14 +66,17 @@ class Handler(SimpleHTTPRequestHandler):
 
     def mutate(self, delete=False):
         route = unquote(urlparse(self.path).path)
-        if not route.startswith('/api/notes/'):
+        if route != '/api/vimrc' and not route.startswith('/api/notes/'):
             return self.send_json({'error': 'Not found'}, 404)
         # Reject browser requests from other origins, including cross-site form posts.
         origin = self.headers.get('Origin')
         if origin and origin != 'http://' + self.headers.get('Host', ''):
             return self.send_json({'error': 'Origin rejected'}, 403)
         try:
-            path = note_path(route[len('/api/notes/'):])
+            is_vimrc = route == '/api/vimrc'
+            if is_vimrc and delete:
+                return self.send_json({'error': 'Use an empty file to reset Vim configuration'}, 405)
+            path = NOTES / '.vimrc' if is_vimrc else note_path(route[len('/api/notes/'):])
             if path.is_symlink():
                 raise ValueError('Symlinks are not supported')
             with LOCK:
@@ -70,8 +84,8 @@ class Handler(SimpleHTTPRequestHandler):
                     path.unlink()
                 else:
                     length = int(self.headers.get('Content-Length', '0'))
-                    if length > 2_000_000:
-                        return self.send_json({'error': 'Note exceeds 2 MB'}, 413)
+                    if length < 0 or length > (65_536 if is_vimrc else 2_000_000):
+                        return self.send_json({'error': 'File exceeds size limit'}, 413)
                     data = json.loads(self.rfile.read(length))
                     content = data['content']
                     if not isinstance(content, str):
@@ -82,6 +96,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json({'ok': True})
         except FileNotFoundError:
             return self.send_json({'error': 'Note not found'}, 404)
+        except OSError:
+            return self.send_json({'error': 'Could not write file'}, 500)
         except (ValueError, KeyError, TypeError):
             return self.send_json({'error': 'Invalid note or request'}, 400)
 

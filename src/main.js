@@ -1,6 +1,8 @@
 import { EditorView, basicSetup } from 'codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { Vim, getCM } from '@replit/codemirror-vim';
+import { Compartment } from '@codemirror/state';
+import { parseVimrc, applyVimrcMappings, applyVimrcOptions, vimrcExtensions } from './vimrc.js';
 import { vimEditing } from './vim-input.js';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
@@ -12,6 +14,17 @@ import { setupSettings } from './settings.js';
 const icon = name => `<i data-lucide="${name}"></i>`;
 const escape = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let revision = 0, savedRevision = 0;
+let vimrcConfig = parseVimrc('');
+const editorPreferences = new Compartment();
+function configureVimrc(content) {
+  vimrcConfig = parseVimrc(content);
+  applyVimrcMappings(vimrcConfig);
+  if (view) {
+    view.dispatch({effects: editorPreferences.reconfigure(vimrcExtensions(vimrcConfig))});
+    applyVimrcOptions(view, vimrcConfig);
+  }
+  return vimrcConfig.warnings;
+}
 let notes = [], selected = null, view, timer, saveChain = Promise.resolve(), mode = 'edit', vimEnabled = true, query = '', storage = '';
 const app = document.querySelector('#app');
 app.innerHTML = `<aside class="sidebar"><a class="brand" href="/">${icon('notebook-pen')}<span>nootes<span class="brand-dot">.</span></span></a><div class="workspace-label">YOUR PERSONAL SPACE</div><button class="new-note">${icon('plus')} New note <kbd>⌘ N</kbd></button><label class="search">${icon('search')}<input placeholder="Search your notes" aria-label="Search notes"><kbd>/</kbd></label><div class="list-heading"><span>All notes</span><span id="count">0</span></div><nav id="notes" aria-label="Notes"></nav><div class="sidebar-bottom"><span class="local-dot"></span><div>Local-first. Yours forever.<small>Saved as Markdown on your server</small></div>${icon('hard-drive')}</div></aside><main><header><div class="breadcrumb">${icon('folder-open')}<span>My notes</span><span class="slash">/</span><span id="crumb">Welcome</span></div><div class="header-actions"><span id="saved">${icon('check')} All changes saved</span><button id="settings" class="icon-button" title="Settings" aria-label="Settings">${icon('settings-2')}</button><button id="help" class="icon-button" title="Keyboard shortcuts">${icon('circle-help')}</button><button id="delete" class="icon-button" title="Delete note">${icon('trash-2')}</button></div></header><div class="document"><div class="note-meta"><span>${icon('file-text')} MARKDOWN NOTE</span><span id="date"></span></div><h1 id="title"></h1><div class="toolbar"><div class="tabs"><button data-mode="edit" class="active">${icon('square-pen')} Write</button><button data-mode="split">${icon('columns-2')} Split</button><button data-mode="preview">${icon('eye')} Preview</button></div><div class="tools"><button id="download" title="Download Markdown">${icon('download')}</button><button id="vim" class="vim-switch" aria-pressed="true"><span class="local-dot"></span> Vim <span id="vim-state">ON</span></button></div></div><div id="content"><div id="editor"></div><article id="preview"></article></div><div id="empty" hidden><div class="empty-icon">${icon('notebook-pen')}</div><h2>A little space to think.</h2><p>Capture an idea, make a list, or start something new.<br>Your words stay in your own Markdown files.</p><button class="new-note">${icon('plus')} Create your first note</button></div></div><footer><div><span id="mode">NORMAL</span><span id="position">Ln 1, Col 1</span></div><div><span id="words">0 words</span><span>Markdown</span><span class="footer-local">${icon('hard-drive')} Local storage</span></div></footer></main><dialog id="dialog"><form method="dialog"><button type="button" class="close icon-button" aria-label="Close">${icon('x')}</button><h2>Make room for an idea</h2><p>Your note will be saved as a Markdown file.</p><label>Note name<input id="new-name" required maxlength="100" placeholder="e.g. Weekend ideas" autocomplete="off"></label><div id="create-error" class="error"></div><button id="create" type="button" class="primary">Create note ${icon('arrow-right')}</button></form></dialog><dialog id="shortcuts"><button class="close icon-button">${icon('x')}</button><h2>At the speed of thought</h2><p>Vim is enabled by default. Click the editor to begin.</p><dl><dt>Insert mode</dt><dd><kbd>i</kbd> or <kbd>a</kbd></dd><dt>Normal mode</dt><dd><kbd>Esc</kbd></dd><dt>Move around</dt><dd><kbd>h j k l</kbd></dd><dt>Save note</dt><dd><kbd>:w</kbd> or <kbd>⌘ S</kbd></dd><dt>Find in note</dt><dd><kbd>/</kbd></dd><dt>Undo / redo</dt><dd><kbd>u</kbd> / <kbd>Ctrl R</kbd></dd><dt>New note</dt><dd><kbd>⌘ N</kbd></dd></dl><p class="storage-path"></p></dialog>`;
@@ -23,7 +36,7 @@ function renderList(){const filtered = notes.filter(n => (n.name+' '+n.content).
 function updateStats(){const text = view?.state.doc.toString() || '';$('#words').textContent = `${text.trim()?text.trim().split(/\s+/).length:0} words`;if(view){const pos = view.state.selection.main.head,line=view.state.doc.lineAt(pos);$('#position').textContent=`Ln ${line.number}, Col ${pos-line.from+1}`;}$('#preview').innerHTML = DOMPurify.sanitize(marked.parse(text));}
 function save(){clearTimeout(timer);if(!selected || !view)return saveChain;const note=selected,content=view.state.doc.toString(), savingRevision=revision;note.content=content;status('Saving…');saveChain=saveChain.catch(()=>{}).then(async()=>{await api('/api/notes/'+encodeURIComponent(note.name),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content})});savedRevision=savingRevision;status(revision===savedRevision?'All changes saved':'Unsaved changes');renderList();}).catch(e=>{status('Save failed — '+e.message,true);throw e;});return saveChain;}
 // Vim must precede basicSetup so modal key handling runs before default editor bindings.
-function mountEditor(content){view?.destroy();view=new EditorView({doc:content,extensions:[...(vimEnabled?[vimEditing()]:[]),basicSetup,markdown(),EditorView.lineWrapping,EditorView.updateListener.of(update=>{if(update.docChanged){revision++;selected.content=update.state.doc.toString();status('Unsaved changes');clearTimeout(timer);timer=setTimeout(()=>save().catch(()=>{}),650);}updateStats();})],parent:$('#editor')});if(vimEnabled){getCM(view).on('vim-mode-change',e=>{$('#mode').textContent=e.mode.toUpperCase();});}$('#mode').textContent=vimEnabled?'NORMAL':'EDIT';updateStats();}
+function mountEditor(content){view?.destroy();view=new EditorView({doc:content,extensions:[editorPreferences.of(vimrcExtensions(vimrcConfig)),...(vimEnabled?[vimEditing()]:[]),basicSetup,markdown(),EditorView.updateListener.of(update=>{if(update.docChanged){revision++;selected.content=update.state.doc.toString();status('Unsaved changes');clearTimeout(timer);timer=setTimeout(()=>save().catch(()=>{}),650);}updateStats();})],parent:$('#editor')});applyVimrcOptions(view,vimrcConfig);if(vimEnabled){getCM(view).on('vim-mode-change',e=>{$('#mode').textContent=e.mode.toUpperCase();});}$('#mode').textContent=vimEnabled?'NORMAL':'EDIT';updateStats();}
 async function openNote(note){if(selected) {try{await save();}catch{return;}}selected=note;$('#empty').hidden=!!note;$('#content').hidden=!note;$('.toolbar').hidden=!note;$('.note-meta').hidden=!note;$('#title').textContent=note?note.name.replace(/\.md$/,''):'';$('#crumb').textContent=note?note.name:'My notes';$('#delete').disabled=!note;if(note){$('#date').textContent=new Date(note.updated).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});mountEditor(note.content);}else{view?.destroy();view=null;}renderList();}
 $('#notes').addEventListener('click',e=>{const b=e.target.closest('[data-name]');if(b)openNote(notes.find(n=>n.name===b.dataset.name));});
 $('.search input').addEventListener('input',e=>{query=e.target.value;renderList();});
@@ -38,7 +51,7 @@ $('#help').onclick=()=>$('#shortcuts').showModal();$('#shortcuts .close').onclic
 Vim.defineEx('write','w',()=>save().catch(()=>{}));
 window.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='s'){e.preventDefault();save().catch(()=>{});}if((e.metaKey||e.ctrlKey)&&e.key==='n'){e.preventDefault();$('.new-note').click();}if(e.key==='/'&&!e.target.closest('.cm-editor,input,dialog')){e.preventDefault();$('.search input').focus();}});
 window.addEventListener('beforeunload',e=>{if(revision!==savedRevision&&selected){e.preventDefault();e.returnValue='';}});
-setupSettings();
+setupSettings({configureVimrc});
 refreshIcons();
 async function initialize(){try{[notes,{storage}]=await Promise.all([api('/api/notes'),api('/api/config')]);$('.storage-path').textContent='Markdown folder: '+storage;await openNote(notes[0]||null);}catch(e){status('Could not load notes: '+e.message,true);}
 }
