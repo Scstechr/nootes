@@ -1,0 +1,55 @@
+# Nootes
+
+A quiet, self-hosted Markdown notebook with Vim editing. Python serves the app and writes notes to ordinary `.md` files on your disk. The frontend bundles CodeMirror 6, Vim bindings, and a sanitized Markdown preview; no cloud service or database is required.
+
+## Run locally
+
+Requires Python 3.10+ and Node.js 20.19+ (for building the frontend).
+
+```sh
+npm install
+npm run build
+python3 server.py
+```
+
+Open http://127.0.0.1:8080. Create your first note using **New note**. Notes autosave after 650 ms of inactivity. The save indicator reports failures; keep the tab open until it says **All changes saved**.
+
+## Self-host with Docker
+
+```sh
+docker compose up --build -d
+```
+
+Open http://127.0.0.1:8080. The `./notes` directory is mounted into the container, so Markdown files survive rebuilds. Back up this directory with your usual backup tools.
+
+## Configuration
+
+- `NOTES_DIR`: Markdown folder, defaults to `./notes` beside `server.py`.
+- `HOST`: listen address, defaults to `127.0.0.1`.
+- `PORT`: listen port, defaults to `8080`.
+
+```sh
+NOTES_DIR=/path/to/my/notes PORT=8090 python3 server.py
+```
+
+The app lists top-level `.md` files in this folder. It reads existing files without importing them into a database. Reload to pick up edits made outside the app. Filename rules allow letters, digits, spaces, underscores, hyphens, and dots, starting with a letter or digit; path traversal and symlinks are rejected. Keep a single active editor per file: concurrent edits use last-write-wins.
+
+The default binding is local-only. For remote hosting, place the app behind an authenticated HTTPS reverse proxy; the app itself has no login. Docker publishes only to localhost by default. Set `HOST=0.0.0.0` for direct LAN access if appropriate.
+
+## Editing
+
+Vim is enabled by default. Click the editor, press `i` to insert, and `Esc` to return to normal mode. Use `h j k l`, `dd`, `u`, `/`, visual selections, and other standard CodeMirror Vim commands. `:w` and Cmd/Ctrl+S save. Cmd/Ctrl+N opens the new-note dialog. Vim can be switched off with the toolbar toggle. Write, split, and preview layouts are available. Download exports the current Markdown text.
+
+## Appearance
+
+Open **Settings** using the sliders icon in the top-right toolbar. Choose **Forest**, **Midnight**, or **Paper**. The scheme applies instantly to the workspace, Markdown preview, and editor, and is remembered in this browser using local storage.
+
+## Development and tests
+
+```sh
+npm run build
+npm test
+```
+
+After frontend edits rebuild, then reload the Python-served app.
+# nootes
