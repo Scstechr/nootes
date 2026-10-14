@@ -124,7 +124,7 @@ test('vimrc tabstop and shiftwidth configure actual indentation; removing mappin
 test('parses Windows line endings, BOM, comments, aliases and booleans', () => {
   const config = parseVimrc('\uFEFF" comment\r\nset nu rnu nowrap ts=8 sw=3 noet " inline comment\r\nset timeoutlen=400 tw=72 nopcre');
   assert.deepEqual(config.warnings, []);
-  assert.deepEqual(config.options, { number: true, relativenumber: true, wrap: false, tabstop: 8, shiftwidth: 3, expandtab: false, timeoutlen: 400, textwidth: 72, pcre: false });
+  assert.deepEqual(config.options, { syntax: true, number: true, relativenumber: true, wrap: false, tabstop: 8, shiftwidth: 3, expandtab: false, timeoutlen: 400, textwidth: 72, pcre: false });
 });
 
 test('expands leaders, preserves mode scopes, and supports nonrecursive mappings', () => {
@@ -162,4 +162,42 @@ test('literal Space leaders and dollar sequences expand literally', () => {
   assert.equal(space.mappings[0].lhs, '<Space>w');
   const dollar = parseVimrc('let mapleader = "$&"\nnnoremap <Leader>w :w<CR>');
   assert.equal(dollar.mappings[0].lhs, '$&w');
+});
+
+
+test('syntax commands support on, off, enable and inline comments', () => {
+  assert.equal(parseVimrc('').options.syntax, true);
+  const off = parseVimrc('syntax off " plain text colors');
+  assert.deepEqual(off.warnings, []);
+  assert.equal(off.options.syntax, false);
+  assert.equal(parseVimrc('syntax off\nsyntax on').options.syntax, true);
+  assert.equal(parseVimrc('syntax off\n:syntax enable').options.syntax, true);
+  const invalid = parseVimrc('syntax maybe');
+  assert.equal(invalid.options.syntax, true);
+  assert.deepEqual(invalid.warnings, [{line: 1, message: 'Use syntax on, syntax off, or syntax enable.'}]);
+});
+
+test('syntax off removes Markdown highlight spans and on restores them without changing text or selection', async () => {
+  const { markdown } = await import('@codemirror/lang-markdown');
+  const { Compartment } = await import('@codemirror/state');
+  const preferences = new Compartment();
+  const parent = document.createElement('div');
+  document.body.append(parent);
+  const doc = '# Heading\n\n**Bold** and `code`';
+  const view = new EditorView({doc, extensions: [preferences.of(vimrcExtensions(parseVimrc('syntax on'))), basicSetup, markdown()], parent});
+  const coloredSpans = () => [...view.contentDOM.querySelectorAll('span')].filter(span => /(?:^| )ͼ/.test(span.className)).length;
+  try {
+    assert.ok(coloredSpans() > 0, 'Markdown is highlighted initially');
+    view.dispatch({selection: {anchor: 4, head: 8}});
+    view.dispatch({effects: preferences.reconfigure(vimrcExtensions(parseVimrc('syntax off')))});
+    assert.equal(coloredSpans(), 0, 'Fallback syntax colors are disabled');
+    assert.equal(view.state.doc.toString(), doc);
+    assert.equal(view.state.selection.main.anchor, 4);
+    assert.equal(view.state.selection.main.head, 8);
+    view.dispatch({effects: preferences.reconfigure(vimrcExtensions(parseVimrc('syntax on')))});
+    assert.ok(coloredSpans() > 0, 'Markdown highlighting is restored');
+    assert.equal(view.state.doc.toString(), doc);
+    assert.equal(view.state.selection.main.anchor, 4);
+    assert.equal(view.state.selection.main.head, 8);
+  } finally { view.destroy(); parent.remove(); }
 });

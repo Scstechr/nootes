@@ -46,7 +46,7 @@ export function setupSettings({ configureVimrc }) {
       <p>Your keybindings, your rhythm. Saved in the notes folder and shared across browsers.</p>
       <label class="vimrc-label" for="vimrc-content">Configuration</label>
       <textarea id="vimrc-content" spellcheck="false" aria-describedby="vimrc-support" placeholder='" Add your Vim preferences here' disabled></textarea>
-      <p id="vimrc-support">Supports map/noremap with n, i, v, and o modes, mapleader, and set options: number, relativenumber, wrap, tabstop, shiftwidth, expandtab, timeoutlen, textwidth, pcre. Vimscript and plugins are unsupported.</p>
+      <p id="vimrc-support">Supports syntax on/off, map/noremap with n, i, v, and o modes, mapleader, and set options: number, relativenumber, wrap, tabstop, shiftwidth, expandtab, timeoutlen, textwidth, pcre. Vimscript and plugins are unsupported.</p>
       <ul id="vimrc-warnings" class="vimrc-warnings" hidden></ul>
       <div class="vimrc-actions"><button type="button" class="vimrc-reload">Reload from disk</button><button type="button" class="vimrc-example">Use example</button><button type="button" class="primary vimrc-save" disabled>Save &amp; apply</button></div>
       <p id="vimrc-status" role="status">Loading local configuration…</p>

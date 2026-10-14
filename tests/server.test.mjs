@@ -4,7 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
-import { createNotesServer, notePath } from '../server.mjs';
+import { EventEmitter } from 'node:events';
+import { createNotesServer, notePath, listenWithFallback } from '../server.mjs';
 
 async function fixture(t) {
   const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'nootes-node-'));
@@ -150,4 +151,40 @@ test('serves built frontend assets, HEAD requests, and never exposes source or n
   for (const route of ['/server.mjs', '/notes/Secret.md', '/%2e%2e%2fserver.mjs']) {
     assert.equal((await fetch(f.base + route)).status, 404);
   }
+});
+
+
+class FakeListener extends EventEmitter {
+  constructor(errors) { super(); this.errors = [...errors]; this.ports = []; }
+  listen(port, host) {
+    this.ports.push(port);
+    const code = this.errors.shift();
+    queueMicrotask(() => code ? this.emit('error', Object.assign(new Error(code), {code})) : this.emit('listening'));
+  }
+}
+
+test('default port falls back past occupied ports and cleans up listener handlers', async () => {
+  const server = new FakeListener(['EADDRINUSE', 'EADDRINUSE', null]);
+  const notices = [];
+  const port = await listenWithFallback(server, {onFallback: (...ports) => notices.push(ports)});
+  assert.equal(port, 8082);
+  assert.deepEqual(server.ports, [8080, 8081, 8082]);
+  assert.deepEqual(notices, [[8080, 8081], [8081, 8082]]);
+  assert.equal(server.listenerCount('error'), 0);
+  assert.equal(server.listenerCount('listening'), 0);
+});
+
+test('explicit port never changes silently', async () => {
+  const server = new FakeListener(['EADDRINUSE']);
+  await assert.rejects(listenWithFallback(server, {port: 9000, allowFallback: false}), {code: 'EADDRINUSE'});
+  assert.deepEqual(server.ports, [9000]);
+});
+
+test('port fallback is bounded and does not retry other errors', async () => {
+  const denied = new FakeListener(['EACCES']);
+  await assert.rejects(listenWithFallback(denied), {code: 'EACCES'});
+  assert.deepEqual(denied.ports, [8080]);
+  const occupied = new FakeListener(['EADDRINUSE', 'EADDRINUSE']);
+  await assert.rejects(listenWithFallback(occupied, {maxAttempts: 2}), {code: 'EADDRINUSE'});
+  assert.deepEqual(occupied.ports, [8080, 8081]);
 });

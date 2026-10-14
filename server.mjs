@@ -181,12 +181,34 @@ export async function createNotesServer({ notesDir = process.env.NOTES_DIR || pa
   return server;
 }
 
+export async function listenWithFallback(server, { host = '127.0.0.1', port = 8080, allowFallback = true, maxAttempts = 10, onFallback = () => {} } = {}) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      await new Promise((resolve, reject) => {
+        const cleanup = () => { server.off('error', failed); server.off('listening', ready); };
+        const failed = error => { cleanup(); reject(error); };
+        const ready = () => { cleanup(); resolve(); };
+        server.once('error', failed);
+        server.once('listening', ready);
+        try { server.listen(port, host); }
+        catch (error) { failed(error); }
+      });
+      return port;
+    } catch (error) {
+      if (error.code !== 'EADDRINUSE' || !allowFallback || port >= 65535 || attempt + 1 >= maxAttempts) throw error;
+      onFallback(port, port + 1);
+      port++;
+    }
+  }
+}
+
 export async function startServer() {
   const host = process.env.HOST || '127.0.0.1';
-  const port = Number(process.env.PORT || 8080);
+  const explicitPort = process.env.PORT !== undefined && process.env.PORT !== '';
+  const port = explicitPort ? Number(process.env.PORT) : 8080;
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('PORT must be an integer between 0 and 65535');
   const server = await createNotesServer();
-  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, host, resolve); });
+  await listenWithFallback(server, {host, port, allowFallback: !explicitPort, onFallback: (occupied, next) => console.log(`Nootes: Port ${occupied} is occupied; trying ${next}…`)});
   const displayHost = host.includes(':') ? `[${host}]` : host;
   console.log(`Nootes -> http://${displayHost}:${server.address().port} | Markdown folder: ${path.resolve(process.env.NOTES_DIR || path.join(root, 'notes'))}`);
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
@@ -199,7 +221,7 @@ export async function startServer() {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   startServer().catch(error => {
     console.error(error.code === 'EADDRINUSE'
-      ? 'Nootes: The port is already in use. Set PORT to another value and run npm start again.'
+      ? `Nootes: Port ${process.env.PORT || 8080} is already in use.\nWindows PowerShell: $env:PORT='8090'; npm start\nmacOS/Linux: PORT=8090 npm start`
       : `Nootes: ${error.message}`);
     process.exitCode = 1;
   });

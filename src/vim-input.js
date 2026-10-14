@@ -45,10 +45,15 @@ export function vimEditing() {
 
 
 
-import { indentUnit } from '@codemirror/language';
+import { indentUnit, HighlightStyle, defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
+
+// A non-fallback empty highlighter suppresses basicSetup's fallback colors
+// while keeping Markdown parsing available for indentation and editing.
+const plainHighlightStyle = HighlightStyle.define([]);
 
 
 export const vimrcExample = `" Nootes supports a practical subset of Vim configuration.
+syntax on
 set number
 set wrap
 set tabstop=4 shiftwidth=2 expandtab
@@ -56,7 +61,7 @@ let mapleader = ","
 inoremap jj <Esc>
 nnoremap <Leader>w :w<CR>
 `;
-const defaults = { number: true, relativenumber: false, wrap: true, tabstop: 4, shiftwidth: 2, expandtab: true, timeoutlen: 200, textwidth: 80, pcre: true };
+const defaults = { syntax: true, number: true, relativenumber: false, wrap: true, tabstop: 4, shiftwidth: 2, expandtab: true, timeoutlen: 200, textwidth: 80, pcre: true };
 const aliases = { nu: 'number', rnu: 'relativenumber', ts: 'tabstop', sw: 'shiftwidth', et: 'expandtab', tw: 'textwidth' };
 const booleans = new Set(['number', 'relativenumber', 'wrap', 'expandtab', 'pcre']);
 const limits = { tabstop: [1, 16], shiftwidth: [1, 16], timeoutlen: [10, 5000], textwidth: [0, 1000] };
@@ -76,6 +81,12 @@ export function parseVimrc(source) {
     let line = raw.trim().replace(/^:/, '');
     if (!line || line.startsWith('"')) return;
     const warn = message => config.warnings.push({ line: index + 1, message });
+    if (/^syntax(?:\s|$)/.test(line)) {
+      const command = /^syntax\s+(on|off|enable)\s*(?:".*)?$/.exec(line);
+      if (command) config.options.syntax = command[1] !== 'off';
+      else warn('Use syntax on, syntax off, or syntax enable.');
+      return;
+    }
     const letLeader = /^let\s+(?:g:)?mapleader\s*=\s*("(?:[^"\\]|\\.)*"|'(?:[^']|'')*')\s*(?:".*)?$/.exec(line);
     if (letLeader) {
       try {
@@ -183,6 +194,7 @@ export function vimrcExtensions(config) {
   const options = config.options;
   return [
     mappingPrefixes(config),
+    syntaxHighlighting(options.syntax ? defaultHighlightStyle : plainHighlightStyle),
     Prec.highest(EditorState.tabSize.of(options.tabstop)),
     Prec.highest(indentUnit.of(options.expandtab ? ' '.repeat(options.shiftwidth) : '\t')),
     options.wrap ? EditorView.lineWrapping : [],

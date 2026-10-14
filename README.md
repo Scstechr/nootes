@@ -12,7 +12,7 @@ npm run build
 npm start
 ```
 
-Open http://127.0.0.1:8080. Create your first note using **New note**. Notes autosave after 650 ms of inactivity. Keep the tab open until the save indicator says **All changes saved**.
+Open the URL printed by the server (normally http://127.0.0.1:8080). If the default port is occupied, startup tries the next ports, up to 8089. An explicitly configured `PORT` stays fixed. Create your first note using **New note**. Notes autosave after 650 ms of inactivity. Keep the tab open until the save indicator says **All changes saved**.
 
 The backend entry point is `server.mjs`; you can also run `node server.mjs` directly. Python and a separate launcher script are no longer needed. Stop the previous server before starting the Node backend. Existing Markdown files and `.vimrc` work in the same notes folder.
 
@@ -59,6 +59,7 @@ The app loads `<NOTES_DIR>/.vimrc` when opened. Use **Settings > Vim configurati
 Use **Use example** in Settings, or save this as `.vimrc` in your notes folder:
 
 ```vim
+syntax on
 set number relativenumber
 set wrap
 set tabstop=4 shiftwidth=2 expandtab
@@ -70,6 +71,8 @@ nnoremap <Leader>w :w<CR>
 This maps `jj` in insert mode to Escape and `,w` in normal mode to save. Save an empty configuration to restore defaults. Removing a mapping and saving restores its original binding. Applying preferences preserves the open note, selection, and undo history.
 
 Supported declarations:
+
+- `syntax on` enables Markdown syntax highlighting (the default). `syntax off` disables highlighting while preserving Markdown editing. `syntax enable` restores highlighting. Changes apply immediately with **Save & apply**.
 
 - `map`, `noremap`, and their `n`, `i`, `v`, and `o` mode variants. `<silent>` is accepted. Special keys use Vim notation, such as `<Esc>`, `<CR>`, `<Space>`, and `<C-s>`.
 - `let mapleader = ","` (also accepts `g:mapleader`, quoted `<Space>`, or a literal space).
@@ -93,3 +96,28 @@ npm run build
 Tests use Node's test runner for both the backend and editor. Backend tests cover Markdown and `.vimrc` persistence, restarts, duplicate creation, request validation, and static files.
 
 For frontend development, run `npm start` in one terminal and `npm run dev` in another. Vite proxies `/api` to the backend at port 8080. Rebuild after frontend edits to update the app served directly by the backend.
+
+## Port already in use
+
+When `PORT` is unset, `npm start` automatically skips occupied ports and prints the actual URL. If you explicitly set an occupied port, choose another value.
+
+Windows PowerShell:
+
+```powershell
+$env:PORT = '8090'
+npm start
+```
+
+Windows Command Prompt:
+
+```bat
+set PORT=8090
+npm start
+```
+
+For Vite development when the backend uses a port other than 8080, set `BACKEND_URL` to its printed URL before `npm run dev`:
+
+```powershell
+$env:BACKEND_URL = 'http://127.0.0.1:8090'
+npm run dev
+```
