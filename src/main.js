@@ -51,7 +51,8 @@ $('#delete').onclick=async()=>{if(!selected||!confirm(`Delete "${selected.name}"
 $('#download').onclick=()=>{if(!selected)return;const url=URL.createObjectURL(new Blob([view.state.doc.toString()],{type:'text/markdown'}));const a=document.createElement('a');a.href=url;a.download=selected.name;a.click();URL.revokeObjectURL(url);};
 $('#help').onclick=()=>$('#shortcuts').showModal();$('#shortcuts .close').onclick=()=>$('#shortcuts').close();
 Vim.defineEx('write','w',()=>save().catch(()=>{}));
-Vim.defineEx('quit','q',()=>openNote(null));
+// Let Vim finish closing its command prompt before destroying the editor.
+Vim.defineEx('quit','q',()=>{const editor=view;queueMicrotask(()=>{if(view===editor)openNote(null);});});
 Vim.defineEx('wq','wq',()=>{const note=selected,editor=view;save().then(()=>{if(selected===note&&view===editor&&note.content===savedContents.get(note))openNote(null);}).catch(()=>{});});
 window.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='s'){e.preventDefault();}if((e.metaKey||e.ctrlKey)&&e.key==='n'){e.preventDefault();$('.new-note').click();}if(e.key==='/'&&!e.target.closest('.cm-editor,input,dialog')){e.preventDefault();$('.search input').focus();}});
 window.addEventListener('beforeunload',e=>{if(notes.some(note=>note.content!==savedContents.get(note))){e.preventDefault();e.returnValue='';}});
