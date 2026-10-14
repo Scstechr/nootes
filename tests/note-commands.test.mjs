@@ -38,7 +38,10 @@ test('explicit writes, save-and-quit, and Vim directory navigation', async () =>
   assert.ok(commandInput, 'colon opens the Ex command prompt');
   commandInput.value='q';
   commandInput.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,bubbles:true,cancelable:true}));
-  await new Promise(resolve=>queueMicrotask(resolve));
+  await new Promise(resolve=>setTimeout(resolve,20));
+  document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',repeat:true,bubbles:true,cancelable:true}));
+  document.activeElement.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',bubbles:true,cancelable:true}));
+  await new Promise(resolve=>setTimeout(resolve,20));
   assert.equal(document.querySelector('#content').hidden,true);
   assert.equal(document.querySelectorAll('#directory [data-name]').length,2);
   document.querySelector('#directory [data-name="One.md"]').click();
@@ -80,7 +83,7 @@ test('explicit writes, save-and-quit, and Vim directory navigation', async () =>
   assert.match(document.querySelector('#saved').textContent,/Save failed/);
   failWrite=false;
   Vim.handleEx(getCM(view),'q');
-  await new Promise(resolve=>queueMicrotask(resolve));
+  await new Promise(resolve=>setTimeout(resolve,20));
   key('l');
   view=EditorView.findFromDOM(document.querySelector('.cm-editor'));
   assert.equal(view.state.doc.toString(),'failed write');

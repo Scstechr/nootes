@@ -3,6 +3,12 @@ export function directoryNavigation(pane, { enabled, open }) {
   let count = '', pendingG = false;
   pane.addEventListener('keydown', event => {
     if (!enabled() || event.metaKey || event.altKey || (event.ctrlKey && !['d', 'u'].includes(event.key))) return;
+    // A held Enter from :q can repeat after focus moves into the directory.
+    // Opening a note requires a fresh press, while movement may still repeat.
+    if (event.repeat && ['l', 'Enter', 'ArrowRight'].includes(event.key)) {
+      event.preventDefault();
+      return;
+    }
     const items = [...pane.querySelectorAll('[data-name]')];
     if (!items.length) return;
     const index = Math.max(0, items.indexOf(document.activeElement));
