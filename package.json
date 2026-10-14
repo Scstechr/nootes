@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "python3 server.py",
+    "start": "node scripts/python.mjs",
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "test": "npm run test:editor && python3 -m unittest discover -s tests -v",
-    "test:editor": "node --test tests/vim-input.test.mjs"
+    "test": "npm run test:launcher && npm run test:editor && node scripts/python.mjs -m unittest discover -s tests -v",
+    "test:editor": "node --test tests/vim-input.test.mjs",
+    "test:launcher": "node --test tests/python-launcher.test.mjs"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.3.4",

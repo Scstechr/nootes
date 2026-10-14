@@ -9,10 +9,29 @@ Requires Python 3.10+ and Node.js 20.19+ (for building the frontend).
 ```sh
 npm install
 npm run build
-python3 server.py
+npm start
 ```
 
 Open http://127.0.0.1:8080. Create your first note using **New note**. Notes autosave after 650 ms of inactivity. The save indicator reports failures; keep the tab open until it says **All changes saved**.
+
+## Windows startup
+
+`npm start` detects a working Python 3.10+ installation. On Windows it tries `py -3`, `python`, then `python3`, and rejects commands that only print `Python` without executing a script.
+
+If you prefer to start the backend directly:
+
+```powershell
+py -3 server.py
+```
+
+If no interpreter is detected, install Python from [python.org](https://www.python.org/downloads/), reopen your terminal, and retry. Windows app execution aliases can point to a placeholder instead of an installed interpreter; see [Python's Windows troubleshooting guide](https://docs.python.org/3/using/windows.html#troubleshooting).
+
+To use a specific interpreter in PowerShell, set its executable path without embedded quotes:
+
+```powershell
+$env:PYTHON = 'C:\Program Files\Python312\python.exe'
+npm start
+```
 
 ## Self-host with Docker
 
@@ -29,7 +48,15 @@ Open http://127.0.0.1:8080. The `./notes` directory is mounted into the containe
 - `PORT`: listen port, defaults to `8080`.
 
 ```sh
-NOTES_DIR=/path/to/my/notes PORT=8090 python3 server.py
+NOTES_DIR=/path/to/my/notes PORT=8090 npm start
+```
+
+In Windows PowerShell:
+
+```powershell
+$env:NOTES_DIR = 'C:\Users\YourName\Documents\Nootes'
+$env:PORT = '8090'
+npm start
 ```
 
 The app lists top-level `.md` files in this folder. It reads existing files without importing them into a database. Reload to pick up edits made outside the app. Filename rules allow letters, digits, spaces, underscores, hyphens, and dots, starting with a letter or digit; path traversal and symlinks are rejected. Keep a single active editor per file: concurrent edits use last-write-wins.

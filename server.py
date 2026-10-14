@@ -95,5 +95,11 @@ if __name__ == '__main__':
     NOTES.mkdir(parents=True, exist_ok=True)
     host = os.environ.get('HOST', '127.0.0.1')
     port = int(os.environ.get('PORT', '8080'))
-    print(f'Nootes → http://{host}:{port} | Markdown folder: {NOTES}', flush=True)
-    ThreadingHTTPServer((host, port), Handler).serve_forever()
+    http = ThreadingHTTPServer((host, port), Handler)
+    print(f'Nootes -> http://{host}:{port} | Markdown folder: {NOTES}', flush=True)
+    try:
+        http.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        http.server_close()
