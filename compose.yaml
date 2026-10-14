@@ -1,0 +1,8 @@
+services:
+  nootes:
+    build: .
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./notes:/data/notes
+    restart: unless-stopped
